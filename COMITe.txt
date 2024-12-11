@@ -1,0 +1,53 @@
+import streamlit as st
+import pandas as pd
+# Fonction pour calculer le nombre de réunions attendues en fonction de la périodicité
+def calculate_expected_meetings(periodicity):
+   periodicity_mapping = {
+       "Hebdomadaire": 52,
+       "Bimensuelle": 24,
+       "Mensuel": 12,
+       "Bimestrielle": 6,
+       "Trimestriel": 4,
+       "Bitrimestrielle": 8,
+       "Semestriel": 2,
+       "Annuel": 1,
+   }
+   return periodicity_mapping.get(periodicity, 0)
+# Titre de l'application
+st.title("Assessment des Comités - Fréquences")
+# Collecte des données de l'utilisateur via Streamlit
+comite_data = []
+# Saisie des comités et périodicités
+num_comites = st.number_input("Combien de comités souhaitez-vous évaluer ?", min_value=1, max_value=10, value=1)
+for i in range(num_comites):
+   st.subheader(f"Comité {i + 1}")
+   comite_name = st.text_input(f"Nom du Comité {i + 1}")
+   periodicity = st.selectbox(f"Périodicité du Comité {i + 1}", ["Hebdomadaire", "Bimensuelle", "Mensuel", "Bimestrielle", "Trimestriel", "Bitrimestrielle", "Semestriel", "Annuel"])
+   comite_data.append({
+       "Comité": comite_name,
+       "Périodicité": periodicity,
+       "Réunions 2022": st.number_input(f"Réunions {i + 1} en 2022", min_value=0),
+       "Réunions 2023": st.number_input(f"Réunions {i + 1} en 2023", min_value=0),
+       "Réunions 2024": st.number_input(f"Réunions {i + 1} en 2024", min_value=0)
+   })
+# Convertir les données en DataFrame pandas
+df = pd.DataFrame(comite_data)
+# Ajouter les évaluations
+for year in ["2022", "2023", "2024"]:
+   df[f"Évaluation {year}"] = df.apply(
+       lambda row: "OK" if row[f"Réunions {year}"] == calculate_expected_meetings(row["Périodicité"]) else "KO",
+       axis=1
+   )
+# Afficher le tableau avec les évaluations
+st.write(df)
+# Option pour télécharger le fichier Excel
+@st.cache_data
+def export_to_excel(dataframe):
+   output_file = "Assessment_Comités_Fréquences.xlsx"
+   dataframe.to_excel(output_file, index=False)
+   return output_file
+# Créer un bouton pour exporter en Excel
+if st.button("Exporter vers Excel"):
+   excel_file = export_to_excel(df)
+   st.success(f"Le fichier Excel a été généré et est prêt à être téléchargé : {excel_file}")
+   st.download_button(label="Télécharger le fichier Excel", data=open(excel_file, "rb").read(), file_name="Assessment_Comités_Fréquences.xlsx", mime="application/vnd.ms-excel")
