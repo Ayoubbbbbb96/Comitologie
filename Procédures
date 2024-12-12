@@ -1,0 +1,58 @@
+from google.colab import files
+import pdfplumber
+import re
+from transformers import pipeline
+from concurrent.futures import ThreadPoolExecutor
+# Étape 1 : Fonction pour extraire le texte d'un fichier PDF
+def extract_text_from_pdf(file_path):
+   with pdfplumber.open(file_path) as pdf:
+       text = ""
+       for page in pdf.pages:  # Parcourt toutes les pages du PDF
+           text += page.extract_text()  # Ajoute le texte extrait
+   return text
+# Étape 2 : Fonction pour nettoyer le texte
+def clean_text(text):
+   text = re.sub(r'\n+', ' ', text)  # Remplace les retours à la ligne multiples
+   text = re.sub(r'\s+', ' ', text)  # Supprime les espaces multiples
+   return text.strip()  # Supprime les espaces en début et fin de chaîne
+# Étape 3 : Charger le modèle de question-réponse
+qa_pipeline = pipeline("question-answering", model="bert-base-uncased")
+print("Modèle IA chargé (bert-base-uncased).")
+# Variable globale pour stocker le texte nettoyé
+texte_nettoye = None
+# Étape 4 : Boucle principale
+while True:
+   # Si aucun fichier n'est chargé, demande à l'utilisateur de charger un PDF
+   if texte_nettoye is None:
+       print("Aucun fichier chargé. Veuillez charger un fichier PDF.")
+       uploaded = files.upload()
+       file_name = list(uploaded.keys())[0]
+       print(f"Fichier chargé : {file_name}")
+       # Extraire et nettoyer le texte
+       texte_circulaire = extract_text_from_pdf(file_name)
+       texte_nettoye = clean_text(texte_circulaire)
+       print(f"Texte extrait et nettoyé. Longueur totale : {len(texte_nettoye)} caractères.")
+       continue
+   # Poser une question ou charger un nouveau fichier
+   question = input("\nPosez une question sur la circulaire ou tapez 'changer' pour charger un nouveau fichier (ou 'exit' pour quitter) : ")
+   if question.lower() == "exit":
+       print("Fin de l'assistant.")
+       break
+   elif question.lower() == "changer":
+       # Réinitialiser le texte et demander un nouveau fichier
+       texte_nettoye = None
+       continue
+   # Diviser le texte si nécessaire
+   max_length = 512
+   segments = [texte_nettoye[i:i+max_length] for i in range(0, len(texte_nettoye), max_length)]
+   # Multithreading pour accélérer le traitement
+   def process_segment(segment):
+       try:
+           return qa_pipeline(question=question, context=segment)['answer']
+       except Exception as e:
+           return f"Erreur sur ce segment : {e}"
+   with ThreadPoolExecutor() as executor:
+       answers = list(executor.map(process_segment, segments))
+   # Fusionner les réponses des segments
+   final_answer = " | ".join(answers)
+   print(f"Réponse : {final_answer}")
